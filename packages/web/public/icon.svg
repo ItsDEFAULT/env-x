@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- A vault: the safe's front, corner rivets, hinges, and a round door with a five-spoke handle wheel. -->
+  <rect width="512" height="512" rx="112" fill="#1b1d22"/>
+  <g fill="#4b4f59">
+    <circle cx="96" cy="96" r="10"/>
+    <circle cx="416" cy="96" r="10"/>
+    <circle cx="96" cy="416" r="10"/>
+    <circle cx="416" cy="416" r="10"/>
+    <rect x="84" y="176" width="52" height="44" rx="12"/>
+    <rect x="84" y="292" width="52" height="44" rx="12"/>
+  </g>
+  <circle cx="272" cy="256" r="150" fill="#5cc8d7"/>
+  <circle cx="272" cy="256" r="128" fill="#262930"/>
+  <g stroke="#5cc8d7" stroke-width="16" stroke-linecap="round">
+    <line x1="272" y1="256" x2="272.0" y2="176.0"/>
+    <line x1="272" y1="256" x2="348.1" y2="231.3"/>
+    <line x1="272" y1="256" x2="319.0" y2="320.7"/>
+    <line x1="272" y1="256" x2="225.0" y2="320.7"/>
+    <line x1="272" y1="256" x2="195.9" y2="231.3"/>
+  </g>
+  <g fill="#5cc8d7">
+    <circle cx="272.0" cy="176.0" r="15"/>
+    <circle cx="348.1" cy="231.3" r="15"/>
+    <circle cx="319.0" cy="320.7" r="15"/>
+    <circle cx="225.0" cy="320.7" r="15"/>
+    <circle cx="195.9" cy="231.3" r="15"/>
+    <circle cx="272" cy="256" r="26"/>
+  </g>
+  <circle cx="272" cy="256" r="10" fill="#262930"/>
+</svg>

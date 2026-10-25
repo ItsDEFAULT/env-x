@@ -1,0 +1,19 @@
+{
+  "name": "env-x",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/core",
+    "packages/web",
+    "packages/cli"
+  ],
+  "scripts": {
+    "build": "npm run build -w @envx/core && npm run build -w @envx/web && npm run build -w @env-x/cli",
+    "dev:web": "npm run dev -w @envx/web",
+    "test": "npm test -w @envx/core && npm test -w @env-x/cli"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "typescript": "^5.9.3"
+  }
+}

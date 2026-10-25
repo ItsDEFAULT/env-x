@@ -36,6 +36,11 @@ export interface ProjectFS {
   list(root: string): Promise<string[]>;
   read(root: string, file: string): Promise<string | null>;
   write(root: string, file: string, text: string): Promise<void>;
+  /**
+   * Canonical form of a folder path (symlinks and short names resolved), so one folder is one
+   * project however its path is spelled. Optional: roots that are already canonical can skip it.
+   */
+  realpath?(root: string): Promise<string>;
 }
 
 export type ErrorCode = 'NOT_FOUND' | 'EXISTS' | 'INVALID' | 'DRIFT' | 'NO_PROJECT' | 'PERMISSION';
@@ -154,6 +159,10 @@ export class Vault {
     private fs: ProjectFS,
   ) {}
 
+  private async canonical(path: string): Promise<string> {
+    return this.fs.realpath ? this.fs.realpath(path) : path;
+  }
+
   private async load(): Promise<VaultState> {
     return (await this.store.loadState()) ?? { version: 1, projects: [] };
   }
@@ -215,12 +224,20 @@ export class Vault {
   }
 
   async getProject(ref: string): Promise<Project> {
-    return this.resolve(await this.load(), ref);
+    const state = await this.load();
+    try {
+      return this.resolve(state, ref);
+    } catch (err) {
+      // `ref` may be a path spelled differently from the stored root (a symlink, a short name).
+      const canonical = await this.canonical(ref).catch(() => ref);
+      if (canonical === ref) throw err;
+      return this.resolve(state, canonical);
+    }
   }
 
   /** The project whose root contains `path` (deepest match wins). */
   async findProjectForPath(path: string): Promise<Project | null> {
-    const norm = normalizePath(path);
+    const norm = normalizePath(await this.canonical(path));
     let best: Project | null = null;
     for (const p of (await this.load()).projects) {
       const root = normalizePath(p.root);
@@ -235,19 +252,20 @@ export class Vault {
    */
   async importProject(opts: { root: string; name?: string; target?: string }): Promise<ImportResult> {
     const state = await this.load();
-    const norm = normalizePath(opts.root);
+    const root = await this.canonical(opts.root);
+    const norm = normalizePath(root);
     let project = state.projects.find((p) => normalizePath(p.root) === norm);
     const created = !project;
 
     if (!project) {
-      let name = opts.name?.trim() || basename(opts.root);
+      let name = opts.name?.trim() || basename(root);
       const taken = new Set(state.projects.map((p) => p.name.toLowerCase()));
       const base = name;
       for (let i = 2; taken.has(name.toLowerCase()); i++) name = `${base}-${i}`;
       project = {
         id: newId(),
         name,
-        root: opts.root,
+        root,
         target: opts.target ?? '.env',
         envs: [],
         active: null,
@@ -259,14 +277,14 @@ export class Vault {
     }
 
     const result: ImportResult = { project, created, imported: [], skipped: [] };
-    const files = (await this.fs.list(opts.root)).filter(isEnvFile).sort();
-    const targetRaw = files.includes(project.target) ? await this.fs.read(opts.root, project.target) : null;
+    const files = (await this.fs.list(root)).filter(isEnvFile).sort();
+    const targetRaw = files.includes(project.target) ? await this.fs.read(root, project.target) : null;
     const targetBody = targetRaw === null ? null : stripHeader(targetRaw);
     const contents = new Map<string, string>();
 
     for (const file of files) {
       if (file === project.target) continue;
-      contents.set(file, (await this.fs.read(opts.root, file)) ?? '');
+      contents.set(file, (await this.fs.read(root, file)) ?? '');
     }
 
     // The target usually duplicates one of the other files; only keep it if it is unique.

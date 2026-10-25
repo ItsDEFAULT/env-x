@@ -83,6 +83,26 @@ test('env lifecycle: create, rename, delete', async () => {
   await assert.rejects(() => vault.createEnv('app', 'bad name'), /not a valid/);
 });
 
+test('one folder is one project, however its path is spelled', async () => {
+  // A filesystem where /link is a symlink to /app.
+  class LinkedFS extends MemoryFS {
+    async realpath(root) {
+      return root.replace(/^\/link(?=\/|$)/, '/app');
+    }
+  }
+  const store = new MemoryStore();
+  const fs = new LinkedFS();
+  fs.files.set('/app/.env', 'A=1\n');
+  const vault = new Vault(store, fs);
+  const first = await vault.importProject({ root: '/app' });
+  const again = await vault.importProject({ root: '/link' });
+  assert.equal(again.created, false);
+  assert.equal(again.project.id, first.project.id);
+  assert.equal((await vault.listProjects()).length, 1);
+  assert.equal((await vault.findProjectForPath('/link/src')).id, first.project.id);
+  assert.equal((await vault.getProject('/link')).id, first.project.id);
+});
+
 test('findProjectForPath matches subdirectories', async () => {
   const { vault, fs } = setup({});
   fs.files.set('C:\\Code\\api/.env', 'A=1\n');

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -54,6 +54,16 @@ test('import, switch, set, diff via the CLI', () => {
   envx('new', 'production', '--from', 'staging');
   envx('rename', 'production', 'prod');
   assert.deepEqual(envxJson('envs').map((e) => e.name).sort(), ['default', 'prod', 'staging']);
+});
+
+test('a symlinked path reaches the same project', () => {
+  const link = join(base, 'my-app-link');
+  symlinkSync(app, link, 'junction'); // a junction on Windows (no admin needed), a symlink elsewhere
+  const r = JSON.parse(execFileSync(process.execPath, [BIN, 'import', '--json'], { cwd: link, env, encoding: 'utf8' }));
+  assert.equal(r.created, false, 'importing through the link does not create a second project');
+  const status = JSON.parse(execFileSync(process.execPath, [BIN, 'status', '--json'], { cwd: link, env, encoding: 'utf8' }));
+  assert.equal(status.project.name, 'my-app');
+  assert.equal(envxJson('ls').length, 1);
 });
 
 test('errors are reported with a non-zero exit code', () => {
@@ -146,10 +156,11 @@ test('daemon requires a token and serves RPC', async () => {
     assert.equal(myApp.hasEnv, true);
     assert.equal(myApp.project, 'my-app');
     assert.ok(!listing.folders.some((f) => f.name === 'home' && f.hasEnv), 'folders without .env files are not flagged');
-    assert.equal(listing.crumbs.at(-1).path, base);
+    // Listings use real paths (on macOS the temp folder is a symlink into /private).
+    assert.equal(listing.crumbs.at(-1).path, realpathSync(base));
     const inside = (await (await rpc(token, { method: 'browseFolders', args: [app] })).json()).result;
     assert.deepEqual(inside.envFiles, ['.env', '.env.staging']);
-    assert.equal(inside.parent, base);
+    assert.equal(inside.parent, realpathSync(base));
     const missing = await (await rpc(token, { method: 'browseFolders', args: [join(base, 'nope')] })).json();
     assert.equal(missing.error.code, 'NOT_FOUND');
     assert.equal((await rpc(null, { method: 'browseFolders', args: [base] })).status, 401);

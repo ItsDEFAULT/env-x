@@ -1,4 +1,4 @@
-import { access, readdir } from 'node:fs/promises';
+import { access, readdir, realpath } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { basename, dirname, join, parse, resolve, sep } from 'node:path';
 import { EnvxError, isEnvFile, normalizePath, type FolderEntry, type FolderListing, type Project } from '@envx/core';
@@ -85,7 +85,10 @@ export async function browseFolders(input: string | undefined, projects: Pick<Pr
     return { path: '', parent: null, crumbs: [{ name: 'This PC', path: '' }], folders, envFiles: [], shortcuts, truncated: false };
   }
 
-  const path = resolve(input?.trim() || homedir());
+  const requested = resolve(input?.trim() || homedir());
+  // List the real path, so folders match project roots (which are stored resolved) and
+  // breadcrumbs show where the folder actually is.
+  const path = await realpath(requested).catch(() => requested);
   let entries;
   try {
     entries = await readdir(path, { withFileTypes: true });

@@ -53,7 +53,9 @@ export function App() {
   // First visit: open straight into a vault. A page served by `envx ui` belongs to the CLI vault
   // (it still needs the token); otherwise use this browser when it can reach local folders.
   useEffect(() => {
-    checkDaemon(location.origin).then((isDaemon) => {
+    // Only a page on this machine can be `envx ui`; don't probe (and 404) from a hosted copy.
+    const local = ['127.0.0.1', 'localhost', '[::1]'].includes(location.hostname);
+    (local ? checkDaemon(location.origin) : Promise.resolve(false)).then((isDaemon) => {
       setDaemonHere(isDaemon);
       if (initial === null && !isDaemon && fsAccessSupported) setMode({ kind: 'browser' });
       setResolving(false);

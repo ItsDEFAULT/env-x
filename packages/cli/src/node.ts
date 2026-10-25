@@ -1,6 +1,6 @@
-import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { EnvxError, Vault, type ProjectFS, type VaultState, type VaultStore } from '@envx/core';
 
@@ -87,6 +87,12 @@ export class NodeFS implements ProjectFS {
   async write(root: string, file: string, text: string): Promise<void> {
     // Written in place (not renamed) so dev-server file watchers see a normal change.
     await writeFile(join(root, file), text);
+  }
+
+  async realpath(root: string): Promise<string> {
+    const absolute = resolve(root);
+    // Resolves symlinks (macOS /var → /private/var) and Windows short names (RUNNER~1).
+    return realpath(absolute).catch(() => absolute);
   }
 }
 

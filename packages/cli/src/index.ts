@@ -184,7 +184,7 @@ async function run(argv: string[]): Promise<void> {
         target: typeof args.flags.target === 'string' ? args.flags.target : undefined,
       });
       return print(() => {
-        const lines = [`${c.green('✔')} ${r.created ? 'Imported' : 'Updated'} ${c.bold(r.project.name)} ${c.dim(root)}`];
+        const lines = [`${c.green('✔')} ${r.created ? 'Imported' : 'Updated'} ${c.bold(r.project.name)} ${c.dim(r.project.root)}`];
         for (const i of r.imported) lines.push(`  + ${c.cyan(i.env)} ${c.dim('from ' + i.file)}`);
         for (const s of r.skipped) lines.push(c.dim(`  · skipped ${s.file}: ${s.reason}`));
         if (r.imported.length === 0 && r.created) lines.push(c.yellow('  No .env files found. Create one with `envx new <env> --empty`.'));

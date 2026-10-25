@@ -8,6 +8,8 @@ on:
 jobs:
   test:
     strategy:
+      # Let every OS finish, so one run shows all platform-specific failures.
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}

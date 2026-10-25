@@ -4,6 +4,12 @@
 
 <p align="center"><strong>Every <code>.env</code>, one click away.</strong></p>
 
+<p align="center">
+  <a href="https://github.com/ItsDEFAULT/env-x/actions/workflows/ci.yml"><img src="https://github.com/ItsDEFAULT/env-x/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+</p>
+
+<p align="center"><a href="https://itsdefault.github.io/env-x/"><strong>Try it in your browser</strong></a> · no install, works in Chrome and Edge</p>
+
 Stop commenting and uncommenting variables to change environments. envx imports the `.env` files from all your projects and switches between development, staging and production with one click, one command, or one tool call from your AI agent. Everything stays on your machine.
 
 ![envx web app](docs/assets/screenshot.png)

@@ -156,11 +156,12 @@ test('daemon requires a token and serves RPC', async () => {
     assert.equal(myApp.hasEnv, true);
     assert.equal(myApp.project, 'my-app');
     assert.ok(!listing.folders.some((f) => f.name === 'home' && f.hasEnv), 'folders without .env files are not flagged');
-    // Listings use real paths (on macOS the temp folder is a symlink into /private).
-    assert.equal(listing.crumbs.at(-1).path, realpathSync(base));
+    // Listings use real paths: symlinks resolved (macOS /var -> /private/var) and Windows short
+    // names expanded (RUNNER~1). Only the native realpath expands short names, as envx does.
+    assert.equal(listing.crumbs.at(-1).path, realpathSync.native(base));
     const inside = (await (await rpc(token, { method: 'browseFolders', args: [app] })).json()).result;
     assert.deepEqual(inside.envFiles, ['.env', '.env.staging']);
-    assert.equal(inside.parent, realpathSync(base));
+    assert.equal(inside.parent, realpathSync.native(base));
     const missing = await (await rpc(token, { method: 'browseFolders', args: [join(base, 'nope')] })).json();
     assert.equal(missing.error.code, 'NOT_FOUND');
     assert.equal((await rpc(null, { method: 'browseFolders', args: [base] })).status, 401);

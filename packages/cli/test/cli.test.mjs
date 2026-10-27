@@ -75,6 +75,105 @@ test('errors are reported with a non-zero exit code', () => {
   );
 });
 
+test('secure environments need confirmation in the CLI', () => {
+  const run = (...args) => {
+    try {
+      return { code: 0, out: execFileSync(process.execPath, [BIN, ...args], { cwd: app, env, encoding: 'utf8', stdio: 'pipe' }) };
+    } catch (err) {
+      return { code: err.status, out: String(err.stdout), err: String(err.stderr) };
+    }
+  };
+  envx('use', 'default');
+  envx('secure', 'staging');
+  assert.equal(envxJson('envs').find((e) => e.name === 'staging').secure, true);
+
+  // Outside a terminal there is no one to ask: fail with exit code 3 unless --yes.
+  const refused = run('use', 'staging');
+  assert.equal(refused.code, 3);
+  assert.match(refused.err, /marked secure.*--yes/);
+  assert.match(readFileSync(join(app, '.env'), 'utf8'), /^# envx: default/);
+  const json = run('use', 'staging', '--json');
+  assert.equal(json.code, 3);
+  assert.equal(JSON.parse(json.out).error.code, 'CONFIRM');
+
+  assert.equal(run('use', 'staging', '--yes').code, 0);
+  assert.match(readFileSync(join(app, '.env'), 'utf8'), /^# envx: staging/);
+  assert.equal(run('use', 'staging').code, 0, 're-applying the active env asks nothing');
+  envx('use', 'default');
+
+  assert.equal(run('secure', 'staging', '--off').code, 3, 'removing the mark also needs confirmation');
+  assert.equal(run('secure', 'staging', '--off', '-y').code, 0);
+  assert.equal(run('use', 'staging').code, 0, 'no longer secure');
+  envx('use', 'default');
+});
+
+test('MCP asks the user before switching to a secure environment', async () => {
+  envx('secure', 'staging');
+  const session = (capabilities, answer) => {
+    const child = spawn(process.execPath, [BIN, 'mcp'], { cwd: app, env });
+    const pending = new Map();
+    const asked = [];
+    let buffer = '';
+    child.stdout.on('data', (chunk) => {
+      buffer += chunk;
+      let nl;
+      while ((nl = buffer.indexOf('\n')) >= 0) {
+        const msg = JSON.parse(buffer.slice(0, nl));
+        buffer = buffer.slice(nl + 1);
+        if (msg.method === 'elicitation/create') {
+          // The client shows this to the human and returns their answer.
+          asked.push(msg.params.message);
+          child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: answer }) + '\n');
+        } else pending.get(msg.id)?.(msg);
+      }
+    });
+    let nextId = 1;
+    const call = (method, params) =>
+      new Promise((resolve) => {
+        const id = nextId++;
+        pending.set(id, resolve);
+        child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n');
+      });
+    const init = call('initialize', { protocolVersion: '2025-06-18', capabilities, clientInfo: { name: 't', version: '0' } });
+    return { child, asked, call, init };
+  };
+  const switchTo = (s) => s.call('tools/call', { name: 'envx_switch_environment', arguments: { environment: 'staging' } });
+
+  const noAsk = session({}, null);
+  try {
+    await noAsk.init;
+    const r = await switchTo(noAsk);
+    assert.equal(r.result.isError, true);
+    assert.match(r.result.content[0].text, /can't ask them/);
+    assert.match(readFileSync(join(app, '.env'), 'utf8'), /^# envx: default/);
+  } finally {
+    noAsk.child.kill();
+  }
+
+  const declines = session({ elicitation: {} }, { action: 'decline' });
+  try {
+    await declines.init;
+    const r = await switchTo(declines);
+    assert.equal(declines.asked.length, 1);
+    assert.equal(r.result.isError, true);
+    assert.match(readFileSync(join(app, '.env'), 'utf8'), /^# envx: default/);
+  } finally {
+    declines.child.kill();
+  }
+
+  const confirms = session({ elicitation: {} }, { action: 'accept', content: { confirm: true } });
+  try {
+    await confirms.init;
+    const r = await switchTo(confirms);
+    assert.equal(r.result.isError, undefined);
+    assert.match(readFileSync(join(app, '.env'), 'utf8'), /^# envx: staging/);
+  } finally {
+    confirms.child.kill();
+  }
+  envx('use', 'default');
+  envx('secure', 'staging', '--off', '--yes');
+});
+
 test('MCP server lists tools and switches environments', async () => {
   const child = spawn(process.execPath, [BIN, 'mcp'], { cwd: app, env });
   const pending = new Map();

@@ -56,6 +56,7 @@ interface Project {
   envs: string[];        // environment names, in display order
   active: string | null; // env currently written to target
   writtenHash: string | null; // hash of what envx last wrote to target
+  secure?: string[];          // envs that need confirmation before switching to them
   createdAt: string;
   updatedAt: string;
 }
@@ -113,6 +114,7 @@ sequenceDiagram
 - Any later difference between the file and that hash is a **hand edit** (`drift`). Policies: `save` (default: move the edits into the previously active env), `discard`, `error`.
 - Saving the *active* env rewrites the target too, but refuses (`DRIFT`) when the target has hand edits, unless `force` is passed. `pull` resolves drift explicitly.
 - On import, the current target becomes the baseline hash, so the first switch is not mistaken for drift.
+- Before any of that, switching to an env listed in `project.secure` (other than the active one) throws `CONFIRM` unless the caller passes `confirm: true`. Each front end gets that from a human: a dialog, a `y/N` prompt or `--yes`, or MCP elicitation.
 
 ### Concurrency
 
@@ -120,7 +122,7 @@ The CLI, the local server and the MCP server can run at the same time against on
 
 ### Errors
 
-Domain errors are `EnvxError` with a `code`: `NOT_FOUND`, `EXISTS`, `INVALID`, `DRIFT`, `NO_PROJECT`, `PERMISSION`. Each front end maps them to its own medium: exit codes, JSON-RPC results, MCP `isError`, UI toasts and dialogs.
+Domain errors are `EnvxError` with a `code`: `NOT_FOUND`, `EXISTS`, `INVALID`, `DRIFT`, `NO_PROJECT`, `PERMISSION`, `CONFIRM`. Each front end maps them to its own medium: exit codes, JSON-RPC results, MCP `isError`, UI toasts and dialogs.
 
 ## CLI
 
@@ -153,6 +155,8 @@ Security layers, checked in this order:
 [`mcp.ts`](../packages/cli/src/mcp.ts) implements MCP over stdio as newline-delimited JSON-RPC, without the SDK, to keep the CLI dependency-free. It handles `initialize` (negotiating the protocol version), `ping`, `tools/list` and `tools/call`, and ignores notifications.
 
 Each tool is a thin wrapper over `Vault`. The project defaults to the one containing the server's working directory; clients such as Claude Code start it in the user's project. Otherwise the agent passes `project`. Values pass through `maskValue` unless `ENVX_MCP_REVEAL=1`. Tool failures are returned as `isError` results, not protocol errors, so the agent can read and react to them.
+
+Secure environments use MCP elicitation, so the server sends requests as well as answering them. If the client declares the `elicitation` capability in `initialize`, switching to a secure env sends `elicitation/create` with a single boolean field; only an `accept` with that box ticked passes `confirm: true` to the vault. Otherwise the tool refuses. The tool deliberately has no `confirm` argument: the agent must never be able to confirm on the user's behalf.
 
 ## Web app
 

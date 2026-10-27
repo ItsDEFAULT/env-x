@@ -10,19 +10,22 @@ interface Props {
   /** Bumped by the parent after changes, to reload the text. */
   version: number;
   active: boolean;
+  /** Switching to this env asks for confirmation. */
+  secure: boolean;
   envNames: string[];
+  secureEnvs: string[];
   onSelect: (env: string) => void;
   onChanged: () => Promise<void>;
 }
 
 type View = 'vars' | 'raw' | 'compare';
 
-export function EnvPanel({ backend, project, env, version, active, envNames, onSelect, onChanged }: Props) {
+export function EnvPanel({ backend, project, env, version, active, secure, envNames, secureEnvs, onSelect, onChanged }: Props) {
   const toast = useToast();
   const [text, setText] = useState<string | null>(null);
   const [view, setView] = useState<View>('vars');
   const [revealAll, setRevealAll] = useState(false);
-  const [modal, setModal] = useState<'rename' | 'delete' | null>(null);
+  const [modal, setModal] = useState<'rename' | 'delete' | 'unsecure' | null>(null);
   const [driftRetry, setDriftRetry] = useState<string | null>(null);
 
   useEffect(() => {
@@ -46,13 +49,25 @@ export function EnvPanel({ backend, project, env, version, active, envNames, onS
     }
   }
 
+  async function setSecure(next: boolean) {
+    try {
+      await backend.setSecure(project.id, env, next);
+      toast(next ? `${env} now asks for confirmation before switching to it` : `${env} is no longer marked secure`);
+      setModal(null);
+      await onChanged();
+    } catch (err) {
+      toast(errorMessage(err), 'error');
+    }
+  }
+
   return (
     <section className="panel">
       <div className="panel-head">
         <div className="tabs" role="tablist" aria-label="Environment">
           {envNames.map((name) => (
-            <button key={name} role="tab" aria-selected={name === env} className={`tab ${name === env ? 'selected' : ''}`} onClick={() => onSelect(name)}>
-              {name}
+            <button key={name} role="tab" aria-selected={name === env} className={`tab ${name === env ? 'selected' : ''}`} onClick={() => onSelect(name)} title={name}>
+              <span className="tab-name">{name}</span>
+              {secureEnvs.includes(name) && <Icon name="lock" size={11} />}
             </button>
           ))}
         </div>
@@ -67,6 +82,14 @@ export function EnvPanel({ backend, project, env, version, active, envNames, onS
           <button className="icon-btn" title={revealAll ? 'Hide values' : 'Reveal values'} onClick={() => setRevealAll((r) => !r)}>
             <Icon name={revealAll ? 'eyeOff' : 'eye'} />
           </button>
+          <button
+            className={`icon-btn ${secure ? 'on' : ''}`}
+            title={secure ? 'Secure: asks before switching to it. Click to remove the mark.' : 'Mark as secure: ask before switching to it'}
+            aria-pressed={secure}
+            onClick={() => (secure ? setModal('unsecure') : setSecure(true))}
+          >
+            <Icon name="lock" />
+          </button>
           <button className="icon-btn" title="Rename" onClick={() => setModal('rename')}>
             <Icon name="pencil" />
           </button>
@@ -78,7 +101,10 @@ export function EnvPanel({ backend, project, env, version, active, envNames, onS
 
       {active && (
         <p className="panel-note">
-          <Icon name="file" size={14} /> Active: changes here are written to <code>{project.target}</code> right away.
+          <Icon name="file" size={14} />
+          <span>
+            Active: changes here are written to <code>{project.target}</code> right away.
+          </span>
         </p>
       )}
 
@@ -111,6 +137,24 @@ export function EnvPanel({ backend, project, env, version, active, envNames, onS
             Someone (or something) changed <code>{project.target}</code> since envx last wrote it. Saving now replaces those edits.
             To keep them, cancel and use <strong>Save edits now</strong> above first.
           </p>
+        </Modal>
+      )}
+      {modal === 'unsecure' && (
+        <Modal
+          title={`Remove the secure mark from ${env}?`}
+          onClose={() => setModal(null)}
+          footer={
+            <>
+              <button className="btn ghost" onClick={() => setModal(null)}>
+                Cancel
+              </button>
+              <button className="btn danger" onClick={() => setSecure(false)}>
+                Remove mark
+              </button>
+            </>
+          }
+        >
+          <p>Switching to {env} will no longer ask for confirmation, here, in the terminal, or from AI agents.</p>
         </Modal>
       )}
       {modal === 'rename' && (

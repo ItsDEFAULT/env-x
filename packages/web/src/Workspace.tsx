@@ -79,14 +79,14 @@ export function Workspace(props: {
         </span>
         <div className="spacer" />
         {props.install.available && (
-          <button className="btn ghost small" onClick={props.install.prompt}>
+          <button className="btn ghost small" onClick={props.install.prompt} aria-label="Install the app" title="Install the app">
             <Icon name="download" size={14} /> <span className="label">Install</span>
           </button>
         )}
-        <button className="btn ghost small" onClick={() => setModal('agents')}>
+        <button className="btn ghost small" onClick={() => setModal('agents')} aria-label="Terminal & agents" title="Terminal & agents">
           <Icon name="bot" size={14} /> <span className="label">Terminal &amp; agents</span>
         </button>
-        <button className="btn ghost small" onClick={() => setModal('vault')} title="Use the browser vault or connect to the envx CLI">
+        <button className="btn ghost small" onClick={() => setModal('vault')} aria-label="Switch vault" title="Use the browser vault or connect to the envx CLI">
           <Icon name="link" size={14} /> <span className="label">Switch vault</span>
         </button>
         <ThemeToggle />
@@ -238,7 +238,7 @@ function ImportModal(props: {
             Cancel
           </button>
           <button className="btn primary" disabled={busy || loading || !listing?.path} onClick={submit}>
-            {busy ? 'Importing…' : listing?.path ? `Import ${here}` : 'Import'}
+            <span className="truncate">{busy ? 'Importing…' : listing?.path ? `Import ${here}` : 'Import'}</span>
           </button>
         </>
       }

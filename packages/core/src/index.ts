@@ -22,6 +22,7 @@ export const VAULT_METHODS = [
   'unsetVars',
   'diffEnvs',
   'switchEnv',
+  'setSecure',
   'pull',
 ] as const;
 

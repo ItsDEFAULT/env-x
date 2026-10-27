@@ -83,6 +83,33 @@ test('env lifecycle: create, rename, delete', async () => {
   await assert.rejects(() => vault.createEnv('app', 'bad name'), /not a valid/);
 });
 
+test('switching to a secure environment needs confirmation', async () => {
+  const { vault, fs } = setup({ '.env': 'DB=local\n', '.env.production': 'DB=prod\n' });
+  await vault.importProject({ root: '/app' });
+  await vault.setSecure('app', 'production', true);
+  assert.equal((await vault.listEnvs('app')).find((e) => e.name === 'production').secure, true);
+
+  await assert.rejects(() => vault.switchEnv('app', 'production'), (err) => err.code === 'CONFIRM');
+  assert.equal(stripHeader(fs.files.get('/app/.env')), 'DB=local\n', 'nothing written without confirmation');
+
+  await vault.switchEnv('app', 'production', { confirm: true });
+  assert.match(fs.files.get('/app/.env'), /DB=prod/);
+  // Re-applying the env that is already active is not "switching over to it".
+  await vault.switchEnv('app', 'production', { onDrift: 'discard' });
+  // Switching away from a secure env needs no confirmation.
+  await vault.switchEnv('app', 'default');
+
+  await vault.renameEnv('app', 'production', 'prod');
+  assert.deepEqual((await vault.getProject('app')).secure, ['prod'], 'rename keeps the mark');
+  await assert.rejects(() => vault.switchEnv('app', 'prod'), (err) => err.code === 'CONFIRM');
+  await vault.setSecure('app', 'prod', false);
+  await vault.switchEnv('app', 'prod');
+  await vault.switchEnv('app', 'default');
+  await vault.setSecure('app', 'prod', true);
+  await vault.deleteEnv('app', 'prod');
+  assert.deepEqual((await vault.getProject('app')).secure, [], 'delete clears the mark');
+});
+
 test('one folder is one project, however its path is spelled', async () => {
   // A filesystem where /link is a symlink to /app.
   class LinkedFS extends MemoryFS {

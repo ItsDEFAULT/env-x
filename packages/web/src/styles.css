@@ -89,6 +89,7 @@ p {
 
 code,
 .mono {
+  overflow-wrap: break-word;
   font-family: var(--mono);
   font-size: 0.92em;
 }
@@ -115,6 +116,14 @@ textarea {
 
 .muted {
   color: var(--muted);
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 .small {
   font-size: 12.5px;
@@ -145,6 +154,7 @@ textarea {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  max-width: 100%;
   gap: 6px;
   height: 34px;
   padding: 0 14px;
@@ -155,6 +165,11 @@ textarea {
   font-weight: 500;
   white-space: nowrap;
   transition: background 0.12s, border-color 0.12s;
+}
+.btn > .truncate {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .btn:hover:not(:disabled) {
   background: var(--surface-2);
@@ -207,6 +222,10 @@ textarea {
 .icon-btn:hover:not(:disabled) {
   background: var(--surface-2);
   color: var(--text);
+}
+.icon-btn.on {
+  color: var(--warn);
+  background: var(--warn-soft);
 }
 .icon-btn:disabled {
   opacity: 0.35;
@@ -375,6 +394,7 @@ a,
 }
 
 .sidebar {
+  min-width: 0;
   grid-area: side;
   border-right: 1px solid var(--border);
   padding: 12px 10px;
@@ -391,10 +411,12 @@ a,
   color: var(--muted);
 }
 .sidebar nav {
+  grid-template-columns: minmax(0, 1fr);
   display: grid;
   gap: 2px;
 }
 .project-item {
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -474,14 +496,19 @@ a,
   max-width: 1040px;
 }
 .project-head {
+  min-width: 0;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
 }
 .project-head h1 {
+  overflow-wrap: anywhere;
   font-size: 24px;
   letter-spacing: -0.01em;
+}
+.project-head > div {
+  min-width: 0;
 }
 .project-head p {
   word-break: break-all;
@@ -533,9 +560,10 @@ a,
   gap: 8px;
 }
 .env-option {
+  max-width: 100%;
   display: grid;
   gap: 3px;
-  min-width: 170px;
+  min-width: min(170px, 100%);
   padding: 11px 14px 10px;
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -561,11 +589,14 @@ a,
   opacity: 0.7;
 }
 .env-option-top {
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 12px;
 }
 .env-option-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
   font: 600 14px var(--mono);
 }
 .env-state {
@@ -583,9 +614,18 @@ a,
   opacity: 0;
   transition: opacity 0.12s;
 }
+@media (hover: none) {
+  .env-state.hint {
+    display: none;
+  }
+}
 .env-option:hover .env-state.hint,
 .env-option:focus-visible .env-state.hint {
   opacity: 1;
+}
+.env-secure {
+  display: inline-flex;
+  color: var(--warn);
 }
 .env-option.pending .env-state {
   color: var(--muted);
@@ -629,6 +669,10 @@ a,
   min-width: 0;
 }
 .tab {
+  display: inline-flex;
+  align-items: center;
+  max-width: 16rem;
+  flex: none;
   padding: 8px 12px 10px;
   border: 0;
   border-bottom: 2px solid transparent;
@@ -637,6 +681,16 @@ a,
   font: 500 13px var(--mono);
   cursor: pointer;
   white-space: nowrap;
+}
+.tab svg {
+  margin-left: 5px;
+  vertical-align: -1px;
+  color: var(--warn);
+}
+.tab-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .tab:hover {
   color: var(--text);
@@ -647,7 +701,9 @@ a,
 }
 .panel-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  max-width: 100%;
   gap: 2px;
   padding-bottom: 6px;
 }
@@ -691,6 +747,7 @@ a,
 .compare {
   padding: 12px 16px 16px;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
 }
 .filter {
@@ -781,6 +838,7 @@ tr:hover .row-actions .icon-btn {
   gap: 10px;
 }
 .compare-head select {
+  max-width: 100%;
   width: auto;
   font-family: var(--mono);
 }
@@ -827,6 +885,8 @@ tr:hover .row-actions .icon-btn {
   font: 13px var(--mono);
 }
 .crumb {
+  overflow-wrap: anywhere;
+  text-align: left;
   padding: 2px 4px;
   border: 0;
   border-radius: 5px;
@@ -931,15 +991,19 @@ tr:hover .row-actions .icon-btn {
   background: rgb(0 0 0 / 0.4);
 }
 .modal-head {
+  gap: 12px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 14px 14px 0 20px;
 }
 .modal-head h2 {
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-size: 16px;
 }
 .modal-body {
+  overflow-wrap: anywhere;
   padding: 14px 20px 18px;
   display: grid;
   gap: 10px;
@@ -950,6 +1014,7 @@ tr:hover .row-actions .icon-btn {
 }
 .modal-foot {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
@@ -978,6 +1043,13 @@ tr:hover .row-actions .icon-btn {
   box-shadow: var(--shadow);
   animation: rise 0.18s ease-out;
 }
+.toast > svg {
+  flex: none;
+}
+.toast > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 .toast.ok svg {
   color: var(--accent);
 }
@@ -996,6 +1068,15 @@ tr:hover .row-actions .icon-btn {
 }
 
 /* ── narrow screens ───────────────────────────────────────────────────────── */
+
+@media (max-width: 400px) {
+  .segmented button {
+    padding: 3px 8px;
+  }
+  .panel-actions .icon-btn {
+    width: 28px;
+  }
+}
 
 @media (max-width: 760px) {
   .app {
@@ -1022,6 +1103,7 @@ tr:hover .row-actions .icon-btn {
     overflow-x: auto;
   }
   .project-item {
+    max-width: min(72vw, 280px);
     width: auto;
     white-space: nowrap;
   }

@@ -20,6 +20,7 @@ export function ProjectView({ backend, mode, project, onChanged }: Props) {
   const [viewing, setViewing] = useState<string | null>(project.active ?? project.envs[0] ?? null);
   const [switching, setSwitching] = useState<string | null>(null);
   const [modal, setModal] = useState<'new' | 'settings' | null>(null);
+  const [confirmSwitch, setConfirmSwitch] = useState<string | null>(null);
   const [version, setVersion] = useState(0); // bump to make EnvPanel reload
 
   const load = useCallback(async () => {
@@ -57,14 +58,22 @@ export function ProjectView({ backend, mode, project, onChanged }: Props) {
     }
   }
 
-  async function switchTo(env: string) {
+  async function switchTo(env: string, confirmed = false) {
     if (switching) return;
+    // Secure environments ask first; the vault refuses the switch without `confirm` anyway.
+    if (!confirmed && env !== active && envs.find((e) => e.name === env)?.secure) return setConfirmSwitch(env);
     setSwitching(env);
     await run(async () => {
-      const r = await backend.switchEnv(project.id, env, { onDrift: 'save' });
-      setViewing(env);
-      toast(`${project.name} is now on ${env}`);
-      if (r.drift === 'saved') toast(`Your edits to ${project.target} were saved into "${r.savedTo}"`, 'warn');
+      try {
+        const r = await backend.switchEnv(project.id, env, { onDrift: 'save', confirm: confirmed });
+        setViewing(env);
+        toast(`${project.name} is now on ${env}`);
+        if (r.drift === 'saved') toast(`Your edits to ${project.target} were saved into "${r.savedTo}"`, 'warn');
+      } catch (err) {
+        // Marked secure elsewhere (CLI, another window) since this view loaded.
+        if (errorCode(err) === 'CONFIRM') return setConfirmSwitch(env);
+        throw err;
+      }
     });
     setSwitching(null);
   }
@@ -137,6 +146,12 @@ export function ProjectView({ backend, mode, project, onChanged }: Props) {
             >
               <span className="env-option-top">
                 <span className="env-option-name">{e.name}</span>
+                {e.secure && (
+                  <span className="env-secure" title="Secure: asks for confirmation before switching to it">
+                    <Icon name="lock" size={12} />
+                    <span className="sr-only">(secure)</span>
+                  </span>
+                )}
                 {e.name === active ? (
                   <span className="env-state">
                     <Icon name="check" size={13} /> Active
@@ -167,12 +182,42 @@ export function ProjectView({ backend, mode, project, onChanged }: Props) {
           project={project}
           env={viewing}
           active={viewing === active}
+          secure={envs.some((e) => e.name === viewing && e.secure)}
           envNames={envs.map((e) => e.name)}
+          secureEnvs={envs.filter((e) => e.secure).map((e) => e.name)}
           onSelect={setViewing}
           onChanged={reloadAll}
         />
       )}
 
+      {confirmSwitch && (
+        <Modal
+          title={`Switch to ${confirmSwitch}?`}
+          onClose={() => setConfirmSwitch(null)}
+          footer={
+            <>
+              <button className="btn ghost" onClick={() => setConfirmSwitch(null)}>
+                Cancel
+              </button>
+              <button
+                className="btn primary"
+                onClick={() => {
+                  const env = confirmSwitch;
+                  setConfirmSwitch(null);
+                  switchTo(env, true);
+                }}
+              >
+                <Icon name="lock" size={14} /> <span className="truncate">Switch to {confirmSwitch}</span>
+              </button>
+            </>
+          }
+        >
+          <p>
+            <strong>{confirmSwitch}</strong> is marked secure. Switching rewrites <code>{project.target}</code> in{' '}
+            <strong>{project.name}</strong>, so anything that reads it will use the {confirmSwitch} values.
+          </p>
+        </Modal>
+      )}
       {modal === 'new' && (
         <NewEnvModal
           envs={envs.map((e) => e.name)}

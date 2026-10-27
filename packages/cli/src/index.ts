@@ -3,7 +3,8 @@ import { resolve, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { readFile, rm, writeFile } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
-import { EnvxError, maskValue, parseEnv, toRecord, type DriftPolicy, type Project, type SwitchResult, type Vault } from '@envx/core';
+import { createInterface } from 'node:readline';
+import { EnvxError, isSecure, maskValue, needsConfirm, parseEnv, toRecord, type DriftPolicy, type Project, type SwitchResult, type Vault } from '@envx/core';
 import { createVault, daemonToken } from './node.js';
 import { startServer } from './server.js';
 import { runMcp } from './mcp.js';
@@ -26,6 +27,7 @@ Environments (in the current project, or -p <project>)
       --all                 Switch every project that has <env>
       --discard             Drop outside edits to .env instead of saving them
       --strict              Fail if .env has outside edits
+      -y, --yes             Confirm switching to a secure env (required outside a terminal)
   status                    Show the active env and outside edits
   show [env]                Show variables (values masked; --reveal to show)
   diff <a> [b]              Compare two envs by key (b defaults to the active env)
@@ -37,6 +39,8 @@ Environments (in the current project, or -p <project>)
   rename <old> <new>        Rename an env
   delete <env>              Delete an env
   pull                      Save outside edits of .env into the active env
+  secure <env>              Ask for confirmation before switching to <env>
+      --off                 Remove the mark (asks for confirmation; -y to skip)
 
 GUI and agents
   ui                        Open the envx web app on this machine
@@ -50,12 +54,14 @@ Global
   -p, --project <ref>       Project name, id or path
   --json                    Machine-readable output
   -h, --help, -v, --version
+
+Exit codes: 0 ok, 1 error, 2 not in a project, 3 needs confirmation (secure env)
 `;
 
 // ── args ──────────────────────────────────────────────────────────────────
 
-const BOOL_FLAGS = new Set(['json', 'reveal', 'all', 'discard', 'strict', 'empty', 'force', 'help', 'version', 'no-open']);
-const ALIASES: Record<string, string> = { p: 'project', e: 'env', h: 'help', v: 'version' };
+const BOOL_FLAGS = new Set(['json', 'reveal', 'all', 'discard', 'strict', 'empty', 'force', 'help', 'version', 'no-open', 'yes', 'off']);
+const ALIASES: Record<string, string> = { p: 'project', e: 'env', h: 'help', v: 'version', y: 'yes' };
 
 interface Args {
   positional: string[];
@@ -163,6 +169,21 @@ function editorCommand(): string {
   return process.env.VISUAL || process.env.EDITOR || (process.platform === 'win32' ? 'notepad' : 'vi');
 }
 
+/**
+ * Ask before a guarded action. `--yes` confirms up front; otherwise only an interactive
+ * terminal can answer, so scripts, `--json` and agents get a CONFIRM error (exit code 3).
+ */
+async function confirm(args: Args, question: string, hint: string): Promise<void> {
+  if (args.flags.yes) return;
+  if (jsonMode || !process.stdin.isTTY || !process.stdout.isTTY) {
+    throw new EnvxError('CONFIRM', `${question} Re-run with --yes to confirm. ${hint}`.trim());
+  }
+  const rl = createInterface({ input: process.stdin, output: process.stderr });
+  const answer = await new Promise<string>((done) => rl.question(`${c.yellow('?')} ${question} [y/N] `, done));
+  rl.close();
+  if (!/^y(es)?$/i.test(answer.trim())) throw new EnvxError('CONFIRM', 'Cancelled.');
+}
+
 // ── commands ──────────────────────────────────────────────────────────────
 
 async function run(argv: string[]): Promise<void> {
@@ -214,7 +235,10 @@ async function run(argv: string[]): Promise<void> {
         if (envs.length === 0) return `${project.name} has no environments. Create one with \`envx new <env>\`.`;
         return [
           c.bold(project.name) + c.dim(` → ${project.target}`),
-          ...envs.map((e) => `${e.active ? c.green('●') : ' '} ${e.active ? c.green(e.name) : e.name} ${c.dim(`${e.keys} keys`)}`),
+          ...envs.map(
+            (e) =>
+              `${e.active ? c.green('●') : ' '} ${e.active ? c.green(e.name) : e.name} ${c.dim(`${e.keys} keys`)}${e.secure ? ` ${c.yellow('secure')}` : ''}`,
+          ),
         ].join('\n');
       }, envs);
     }
@@ -227,8 +251,13 @@ async function run(argv: string[]): Promise<void> {
         ? (await vault.listProjects()).filter((p) => p.envs.includes(env))
         : [await currentProject(vault, args)];
       if (targets.length === 0) throw new EnvxError('NOT_FOUND', `No project has an environment named "${env}".`);
+      const guarded = targets.filter((p) => needsConfirm(p, env));
+      if (guarded.length) {
+        const where = guarded.map((p) => p.name).join(', ');
+        await confirm(args, `"${env}" is marked secure (${where}). Switch to it?`, '');
+      }
       const results: SwitchResult[] = [];
-      for (const p of targets) results.push(await vault.switchEnv(p.id, env, { onDrift }));
+      for (const p of targets) results.push(await vault.switchEnv(p.id, env, { onDrift, confirm: guarded.includes(p) }));
       return print(
         () =>
           results
@@ -250,7 +279,7 @@ async function run(argv: string[]): Promise<void> {
         const lines = [
           `${c.bold(project.name)} ${c.dim(project.root)}`,
           `  active: ${s.active ? c.green(s.active) : c.dim('none')} → ${project.target}${s.targetExists ? '' : c.dim(' (missing)')}`,
-          `  envs:   ${project.envs.join(', ') || c.dim('none')}`,
+          `  envs:   ${project.envs.map((e) => (isSecure(project, e) ? `${e} ${c.yellow('(secure)')}` : e)).join(', ') || c.dim('none')}`,
         ];
         if (s.drift) lines.push(c.yellow(`  ${project.target} has edits made outside envx. They will be saved into "${s.active ?? 'unsaved'}" on the next switch (or run \`envx pull\`).`));
         return lines.join('\n');
@@ -362,6 +391,22 @@ async function run(argv: string[]): Promise<void> {
       return print(`${c.green('✔')} Saved ${project.target} into ${c.cyan(p.active!)}.`, p);
     }
 
+    case 'secure': {
+      const project = await currentProject(vault, args);
+      const env = need(rest[0], 'secure <env> [--off]');
+      const off = Boolean(args.flags.off);
+      if (off && isSecure(project, env)) {
+        await confirm(args, `Remove the secure mark from "${env}"? Switching to it will no longer ask for confirmation.`, '');
+      }
+      const p = await vault.setSecure(project.id, env, !off);
+      return print(
+        off
+          ? `${c.green('✔')} ${c.cyan(env)} is no longer marked secure.`
+          : `${c.green('✔')} ${c.cyan(env)} is marked secure: switching to it now asks for confirmation.`,
+        { env, secure: !off, project: p.name },
+      );
+    }
+
     case 'forget': {
       const project = rest[0] ? await vault.getProject(rest[0]) : await currentProject(vault, args);
       await vault.removeProject(project.id);
@@ -413,5 +458,6 @@ run(process.argv.slice(2)).catch((err: unknown) => {
   } else {
     console.error(`${c.red('✖')} ${(err as Error).message}`);
   }
-  process.exit(err instanceof EnvxError && err.code === 'NO_PROJECT' ? 2 : 1);
+  const code = err instanceof EnvxError ? err.code : undefined;
+  process.exit(code === 'NO_PROJECT' ? 2 : code === 'CONFIRM' ? 3 : 1);
 });

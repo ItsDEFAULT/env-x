@@ -11,6 +11,8 @@ export interface Project {
   active: string | null;
   /** Hash of what envx last wrote to the target; anything else there is drift. */
   writtenHash: string | null;
+  /** Environments that need explicit confirmation before switching to them (e.g. production). */
+  secure?: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -43,7 +45,7 @@ export interface ProjectFS {
   realpath?(root: string): Promise<string>;
 }
 
-export type ErrorCode = 'NOT_FOUND' | 'EXISTS' | 'INVALID' | 'DRIFT' | 'NO_PROJECT' | 'PERMISSION';
+export type ErrorCode = 'NOT_FOUND' | 'EXISTS' | 'INVALID' | 'DRIFT' | 'NO_PROJECT' | 'PERMISSION' | 'CONFIRM';
 
 export class EnvxError extends Error {
   constructor(
@@ -61,6 +63,8 @@ export type DriftPolicy = 'save' | 'discard' | 'error';
 export interface EnvSummary {
   name: string;
   active: boolean;
+  /** Switching to it needs confirmation. */
+  secure: boolean;
   keys: number;
 }
 
@@ -117,6 +121,15 @@ export function compareEnvNames(a: string, b: string): number {
     return i < 0 ? ENV_ORDER.length : i;
   };
   return rank(a) - rank(b) || a.localeCompare(b);
+}
+
+export function isSecure(project: Pick<Project, 'secure'>, env: string): boolean {
+  return project.secure?.includes(env) ?? false;
+}
+
+/** Switching `project` to `env` needs confirmation: it is secure and not already active. */
+export function needsConfirm(project: Pick<Project, 'secure' | 'active'>, env: string): boolean {
+  return isSecure(project, env) && project.active !== env;
 }
 
 export function managedHeader(env: string): string {
@@ -372,6 +385,7 @@ export class Vault {
       project.envs.map(async (name) => ({
         name,
         active: name === project.active,
+        secure: isSecure(project, name),
         keys: new Set(parseEnv(await this.envText(project, name)).map((e) => e.key)).size,
       })),
     );
@@ -430,6 +444,7 @@ export class Vault {
     await this.store.writeEnv(project.id, to, text);
     await this.store.deleteEnv(project.id, from);
     project.envs = project.envs.map((e) => (e === from ? to : e));
+    if (project.secure) project.secure = project.secure.map((e) => (e === from ? to : e));
     if (project.active === from) {
       project.active = to;
       const current = await this.readTarget(project);
@@ -449,6 +464,7 @@ export class Vault {
     }
     await this.store.deleteEnv(project.id, env);
     project.envs = project.envs.filter((e) => e !== env);
+    if (project.secure) project.secure = project.secure.filter((e) => e !== env);
     await this.commit(state, project);
     return project;
   }
@@ -476,18 +492,33 @@ export class Vault {
     return diffEnv(await this.envText(project, from), await this.envText(project, to));
   }
 
+  /** Mark an environment as secure (switching to it needs confirmation), or clear the mark. */
+  async setSecure(ref: string, env: string, secure: boolean): Promise<Project> {
+    const state = await this.load();
+    const project = this.resolve(state, ref);
+    this.requireEnv(project, env);
+    const others = (project.secure ?? []).filter((e) => e !== env);
+    project.secure = secure ? [...others, env] : others;
+    await this.commit(state, project);
+    return project;
+  }
+
   // ── switching ───────────────────────────────────────────────────────────
 
   /**
    * Make `env` the active environment by writing it to the project's target file.
    * Outside edits to the target are, by default, saved into the previously active env.
    */
-  async switchEnv(ref: string, env: string, opts: { onDrift?: DriftPolicy } = {}): Promise<SwitchResult> {
+  async switchEnv(ref: string, env: string, opts: { onDrift?: DriftPolicy; confirm?: boolean } = {}): Promise<SwitchResult> {
     const policy = opts.onDrift ?? 'save';
     const state = await this.load();
     const project = this.resolve(state, ref);
     this.requireEnv(project, env);
     const from = project.active;
+    // Enforced here, below every interface, so none of them can switch to a secure env silently.
+    if (needsConfirm(project, env) && !opts.confirm) {
+      throw new EnvxError('CONFIRM', `"${env}" is marked secure. Switching ${project.name} to it needs confirmation.`);
+    }
     const result: SwitchResult = { project, from, to: env, drift: 'none' };
 
     const current = await this.readTarget(project);

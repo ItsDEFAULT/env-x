@@ -51,6 +51,7 @@ The first time, Chrome and Edge ask whether the site may **access other apps and
 - **Raw:** edit the file as text. Comments and order are kept. Save with Ctrl/⌘ + S.
 - **Compare:** see which keys differ between two environments.
 - **Settings:** rename the project, change its target file (e.g. `.env.local`), or remove it.
+- **Secure environments:** click the lock in an environment's toolbar to mark it secure, for example `production`. Switching to it then asks for confirmation, in the app, the terminal and AI agents alike. Secure environments show a lock on their card and tab. Removing the mark asks first.
 - **Theme:** the sun/moon button in the top bar switches between light and dark. It starts from your system setting and remembers your choice.
 
 If `.env` was edited outside envx, a yellow banner offers **Save edits now** (keep them in the active environment) or **Discard edits**.

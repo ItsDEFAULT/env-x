@@ -32,5 +32,11 @@ Browsers drop folder permission after a restart unless the app is installed or y
 **My agent doesn't see a project**
 Agents use the CLI vault. Import the project with `envx import`. Projects in the browser vault are invisible to agents.
 
+**`envx use` exits with code 3, or says the environment "is marked secure"**
+That environment asks for confirmation before you switch to it. In a terminal, answer the prompt. In scripts, CI or `--json` mode, add `--yes`. To stop asking, run `envx secure <env> --off`.
+
+**My AI agent says it "can't ask" me before switching**
+The environment is marked secure, and your agent app doesn't support MCP elicitation, so envx can't show you the question. Switch it yourself (`envx use <env>` or the web app), or remove the mark if you don't need it.
+
 **Start from scratch**
 Delete `~/.envx`. Your projects' `.env` files are not affected.

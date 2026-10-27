@@ -42,6 +42,17 @@ Each tool takes an optional `project` (name, id or path). Without it, the tool u
 
 > Is any project still pointing at production?
 
+## Secure environments
+
+Environments marked secure (`envx secure production`, or the lock in the web app) can't be switched to by an agent on its own:
+
+- envx asks **you**, through your agent app, using MCP [elicitation](https://modelcontextprotocol.io/specification/draft/client/elicitation). You'll see "Allow your AI agent to switch … to production?" and decide.
+- The agent can't answer for you: there is no "confirm" argument it could pass.
+- If your agent app can't ask you this way, the switch is refused, and the agent is told to ask you to switch it yourself.
+- `envx_list_projects` and `envx_status` list each project's `secure_environments`, so agents know in advance.
+
+Agents that use the CLI instead get exit code `3` and a message to pass `--yes`. Your agent app shows you that command before running it, so the approval is yours there too.
+
 ## Secrets
 
 Agents see variable **names**, but values are masked (`sk_••••••`). To let agents read real values:

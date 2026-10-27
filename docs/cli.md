@@ -37,6 +37,7 @@ Most commands act on the project that contains the current directory. Use `-p <p
 | `envx rename <old> <new>` | Rename an environment. |
 | `envx delete <env>` | Delete an environment. You can't delete the active one. |
 | `envx pull` | Save hand edits of `.env` into the active environment now. |
+| `envx secure <env>` | Mark an environment as secure: switching to it asks for confirmation. `--off` removes the mark (also asks; `-y` to skip). |
 
 `use` options:
 
@@ -45,6 +46,7 @@ Most commands act on the project that contains the current directory. Use `-p <p
 | `--all` | Switch every project that has `<env>`. |
 | `--discard` | Throw away hand edits to `.env` instead of saving them. |
 | `--strict` | Fail if `.env` has hand edits. |
+| `-y, --yes` | Confirm switching to a secure environment. In a terminal, envx asks instead; in scripts and `--json` mode, `--yes` is required. |
 
 Editing the **active** environment (`set`, `unset`, `edit`) also rewrites `.env` right away. If `.env` has hand edits, the command fails instead of overwriting them. Run `envx pull` first, or add `--force` to overwrite.
 
@@ -92,3 +94,4 @@ Editing the **active** environment (`set`, `unset`, `edit`) also rewrites `.env`
 | `0` | Success |
 | `1` | Error |
 | `2` | Not inside an imported project (pass `-p`, or run `envx import`) |
+| `3` | Needs confirmation: the environment is marked secure (answer the prompt, or pass `--yes`) |

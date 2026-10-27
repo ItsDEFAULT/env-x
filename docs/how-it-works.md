@@ -46,6 +46,18 @@ envx remembers what it last wrote to `.env`. If the file changes after that (you
 
 `envx status` and the web app show when `.env` has hand edits.
 
+## Secure environments
+
+Mark an environment as secure (`envx secure production`, or the lock in the web app) and every way of switching to it asks for confirmation first:
+
+| Where | How it asks |
+| --- | --- |
+| Web app | A confirmation dialog |
+| Terminal | A `y/N` prompt; scripts and `--json` need `--yes`, and get exit code `3` without it |
+| AI agents (MCP) | Your agent app asks you; the agent can't confirm by itself |
+
+The check lives in the vault itself, below all of these, so no interface can skip it. Switching away from a secure environment, or re-applying the one that's already active, asks nothing. Removing the mark asks too.
+
 ## Storage
 
 The CLI vault lives in `~/.envx` (or `$ENVX_HOME`):
